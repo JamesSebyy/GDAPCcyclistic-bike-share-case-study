@@ -1,0 +1,587 @@
+---
+title: "Cyclistic_Analysis"
+author: "James Seby Bacus"
+date: "2026-06-30"
+output:
+  html_document: default
+---
+<br>
+<br>
+
+## Data Phases for my Cyclistic Analysis for the Google Data Analytics Professional (GDAP) Certificate
+
+The purpose of this document is to track and document my data analysis process based on the fictional company "Cyclistic" and its data on ridesharing customers, specifically, figuring out key insights of annual members to answer:
+
+##### How do annual members and casual riders use Cyclistic bikes differently?
+To answer this, I have to follow the standard data narrative phase in order: 1) Ask, 2) Prepare, 3) Process, 4) Analyze 5) Share 6) Act. the specific deliverables can be summarised as follows:
+
+ * A clear statement of the business task
+ * A description of all data sources used
+ * Documentation of any cleaning or manipulation of data
+ * A summary of analysis
+ * Supporting visualizations and key findings
+ * My top three recommendations based on the analysis
+
+Also, full disclosure, I did use AI, but only very sparingly, usually only to help me explain my errors and for me to click the references to rdocumentation's or tidyverse's (ggplot2's page was most helpful) for my readings.
+
+<br>
+<br>
+<br>
+
+
+### ASK:
+#### Business Task
+The company needs to develop new marketing strategies to convince casual riders to become annual members, the most profitable area of the two sectors, but there is a potential knowledge gap in how these two sectors differ. I plan to tackle this by analyzing customer data of the most recent complete year to determine any rider type differences which stakeholders can use to develop further strategies to capture more annual membership conversions.
+
+<br>
+
+#### Stakeholders:
+* Ms Lily Moreno, director of marketing
+* Marketing analytics team
+* Executive C-suite team
+
+<br>
+<br>
+<br>
+
+### PREPARE:
+#### Description of Data Sources used; ROCCC
+(the company is fictional) The data is directly collected from the Cyclistic database of customer data collected between January 2025 til December 2025 (the most recent complete year). It contains all the necessary data required to paint a simple picture of the customers of Cyclistic. 
+
+This data is mainly processed using RStudio with the comprehensive tidyverse package and analysed through Excel using common functions and sort and filter actions. 
+
+I also checked the first of the 12 csv files to familiarize myself with the data (I thank Apple Silicon to be able to run it smoothly) and read the headers to fully grasp what it is that I may want to know about it. After quickly verifying that the important columns I may need for my analysis are bike type, start and end times, start and end station IDs, and, most importantly, the member type, I also did quick filters to skim through the options to see any blank or null values within each column. After this short validation process, I found that there are cells that do not contain start and/or end station data (both IDs and names), so I opted out from using route analysis due to the missing data. 
+
+Thus, I came up with the following questions that I may use to guide me through this analysis:
+
+1. Which rider type rides more?
+2. Which rider type rides longer on average?
+3. How does usage change across the year and to what extent are casual rides seasonal-oriented?
+4. Which day of the week is most popular for each rider type?
+5. Which hour sees more riders per rider type?
+6. Are there bike type preferences per rider type?
+
+Note: Initially looking at these questions, I hypothesized that I may rely on bar and line charts. I could add more.
+
+<br>
+<br>
+<br>
+
+### PROCESS:
+First, we need to install and load tidyverse which contains all the necessary packages which includes 'readr', 'purrr', 'dplyr', 'ggplot2', amongst many. For the day/time functions, I also installed and load 'lubridate'.
+
+<br>
+
+```{r installing neccessary packages}
+install.packages("tidyverse")
+install.packages("lubridate")
+
+library(tidyverse)
+library(lubridate)
+```
+
+The most important functions to use for this analysis, based on the cheatsheets and community posts are:
+
+* ``read_csv()``   > from readr
+* ``filter()``     > from dplyr
+* ``mutate()``     > from dplyr
+* ``group_by()``   > from dplyr
+* ``summarise()``  > from dplyr
+* ``map_dfr()``    > from purrr
+* ``write_csv()``  > from readr
+* ``floor_date()`` > from lubridate
+* ``wday()``       > from lubridate
+* ``hour()``       > from lubridate
+* ``ymd()``        > from lubridate
+
+Initially, I tried brute-forcing R to combine all csv files of 2025 into one massive csv. But every time I did so, RStudio would stop indexing at about the fourth or fifth csv before it just gives up and tells me to restart. This has happened three times. 
+
+original code to combine all 12 csvs into one:
+
+``cyclistic_raw <- csv_files %>%
+  map_dfr(read_csv, show_col_types = FALSE)
+``
+After the third atempt, I realized that instead of forcing hundreds of thousands, to millions, of rows into one csv, I thought it could be a lot more efficient if I just summarised what it is I want to find from all csv files. So I created a new Analysis (V2) to see if it would work. 
+
+I made a new folder in my projects file called "raw_data" where I uploaded all the csv files. NOTE, and I know I should have read interface, but after the first time, I realized that I could have actually compressed all 12 csvs into a zip folder which I could upload so RStudio would decompress and upload all 12 files at once. 
+
+Then, I validated the numbers by running:
+```{r file data validation}
+csv_files <- list.files(path = "raw_data", pattern = "\\.csv$", full.names = TRUE) 
+
+length(csv_files)
+```
+
+When I confirmed that it detected all twelve, I decided to run a small test to see if Rstudio would crash on me again. I did this by first using the first file of the twelve and assigned the test run to "test_summary"
+
+```{r test summary}
+test_summary <- read_csv(csv_files[1], show_col_types = FALSE) %>%
+  mutate(
+    ride_length_min = as.numeric(difftime(ended_at, started_at, units = "mins")), #creating new column - trip/ride length, as per the case
+    day_of_week = wday(started_at, label = TRUE, abbr = FALSE), 
+    hour_of_day = hour(started_at),
+    month = floor_date(started_at, "month")) %>%
+  filter(
+    ride_length_min > 0, # Just in case I missed any null or zero values or if the program encounters wrong outputs due to bad data
+    ride_length_min <= 1440, # filters out ride lengths that are more than 24 hours; any ride longer than that is unrealistic or represents a bike that is not docked properly
+    member_casual %in% c("member", "casual")) %>%
+  group_by(member_casual) %>%
+  summarise(
+    total_rides = n(), # to count how many each rider type has in terms of rides
+    avg_ride_length = mean(ride_length_min, na.rm = TRUE),
+    median_ride_length = median(ride_length_min, na.rm = TRUE),
+    .groups = "drop")
+
+test_summary # tibble view summary
+```
+
+<br>
+<br>
+<br>
+
+### ANALYZE:
+When I confirmed that the test_summary created a tibble with no issues, I could actually start with my analysis. I decided to create a 'monthly_summary' for 2025 to see if there are any usage differences between month on month usage in 2025 between both rider types to answer Question 3: "How does usage change across the year and to what extent are casual rides seasonal-oriented?." I arbitrarily picked this question to answer first. 
+
+<br>
+
+#### Question 3:
+```{r failed monthly summary}
+monthly_summary <- map_dfr(csv_files, function(file) {
+  read_csv(file, show_col_types = FALSE) %>%
+    mutate(
+      ride_length_min = as.numeric(difftime(ended_at, started_at, units = "mins")),
+      month = floor_date(started_at, "month")) %>%
+    filter(
+      ride_length_min > 0,
+      ride_length_min <= 1440,
+      member_casual %in% c("member", "casual")) %>%
+    group_by(month, member_casual) %>%
+    summarise(
+      total_rides = n(),
+      total_ride_minutes = sum(ride_length_min, na.rm = TRUE),
+      .groups = "drop")
+})
+
+monthly_summary_final <- monthly_summary %>%
+  group_by(month, member_casual) %>%
+  summarise(
+    total_rides = sum(total_rides),
+    total_ride_minutes = sum(total_ride_minutes),
+    avg_ride_length = total_ride_minutes / total_rides,
+    .groups = "drop") %>%
+  arrange(month, member_casual)
+
+monthly_summary_final
+```
+
+<br>
+
+Upon checking the tibble, I realized that the syntax not only created duplicated file-level monthly summaries, but also repeated month + member_casual rows which lead to the 48 rows instead of 13 (which included the trailing end 2024, or December, bike rides). Multiple summaries appeared per year because the data had been summarized at the file level before being stacked (leading to the 48 rows). The fix was to collapse or aggregate those duplicate summaries by summing total rides and total ride minutes, then recalculating the average ride length from each of those observations whilst also, at the same time, filtering out the non 2025 rides from December 2024:
+
+<br>
+
+```{r new monthly summary}
+  monthly_summary <- map_dfr(csv_files, function(file) {
+  read_csv(file, show_col_types = FALSE) %>%
+    mutate(
+      ride_length_min = as.numeric(difftime(ended_at, started_at, units = "mins")),
+      month = floor_date(started_at, "month")) %>%
+    filter(
+      ride_length_min > 0,
+      ride_length_min <= 1440,
+      member_casual %in% c("member", "casual")) %>%
+    group_by(month, member_casual) %>%
+    summarise(
+      total_rides = n(),
+      total_ride_minutes = sum(ride_length_min, na.rm = TRUE),
+      .groups = "drop")
+})
+
+monthly_summary_final <- monthly_summary %>%
+  group_by(month, member_casual) %>%
+  summarise(
+    total_rides = sum(total_rides),
+    total_ride_minutes = sum(total_ride_minutes),
+    avg_ride_length = total_ride_minutes / total_rides,
+    .groups = "drop") %>%
+  arrange(month, member_casual)
+
+monthly_summary_final
+
+monthly_summary_2025 <- monthly_summary_final %>%
+  filter(month >= ymd("2025-01-01"),
+         month <= ymd("2025-12-01"))
+
+monthly_summary_2025
+```
+
+<br>
+
+To easily keep the data static (and to protect myself against a non-zero-chance rStudio freeze or lag), I decided to write the table into a csv which I can then use in the future during the share phase when I make my visualizations. This is also easy for me to then view the data in Excel to later use various functions, operations, and filter-sort processes on the data to answer the question of "How does usage change across the year and to what extent are casual rides seasonal-oriented?." (This is also a process I will be repeating to answer the other questions.)
+
+
+```{r monthly summary csv}
+write_csv(monthly_summary_2025, "monthly_summary_2025.csv")
+
+nrow(monthly_summary_2025)
+```
+
+<br>
+<br>
+
+##### Findings:
+Critically, both rider types have a similar usage trend in 2025, with the summer months and the months entering fall experiencing peak ridership (August for both rider types being the peak). Based on the data, both rider types are seasonal-oriented since colder months like fall and winter experience the lowest ridership volume, with ridership being positively correlated to temperature. What was surprising was seeing the same variable relationship among member riders but it does make sense considering that studies like the ones conducted by [Nahal and Mitra](https://www.sciencedirect.com/science/article/abs/pii/S2214140517309192) and [Ebbinghaus et al.](https://www.sciencedirect.com/science/article/pii/S1369847825001652#ab005) did note that cyclists who do commute to work tend to switch to other modes of transport during colder periods with a few staying dedicated and still riding during those months (the first study finding 27% still cycling, with the Cyclistic data implying 26% on average for the year - taking the average of the total monthly ridership volume of the three lowest winter months and dividing it by the average of the three highest summer months).
+
+
+Proceeding to the next question arbitrarily with the same procedure:
+
+<br>
+<br>
+
+
+#### Question 4:
+
+```{r day summary }
+day_summary <- map_dfr(csv_files, function(file) {
+  read_csv(file, show_col_types = FALSE) %>%
+    mutate(
+      ride_length_min = as.numeric(difftime(ended_at, started_at, units = "mins")),
+      month = floor_date(started_at, "month"),
+      day_of_week_num = wday(started_at, week_start = 1),
+      day_of_week = wday(started_at, label = TRUE, abbr = FALSE, week_start = 1)) %>%
+    filter(
+      month >= ymd("2025-01-01"),
+      month <= ymd("2025-12-01"),
+      ride_length_min > 0,
+      ride_length_min <= 1440,
+      member_casual %in% c("member", "casual")) %>%
+    group_by(day_of_week_num, day_of_week, member_casual) %>%
+    summarise(
+      total_rides = n(),
+      total_ride_minutes = sum(ride_length_min, na.rm = TRUE),
+      .groups = "drop")
+})
+
+day_summary_2025 <- day_summary %>%
+  group_by(day_of_week_num, day_of_week, member_casual) %>%
+  summarise(
+    total_rides = sum(total_rides),
+    total_ride_minutes = sum(total_ride_minutes),
+    avg_ride_length = total_ride_minutes / total_rides,
+    .groups = "drop") %>%
+  arrange(day_of_week_num, member_casual)
+
+day_summary_2025
+
+write_csv(day_summary_2025, "day_summary_2025.csv")
+```
+
+<br>
+<br>
+
+
+##### Findings:
+I, once again, used Excel to answer Question 4 "Which day of the week is most popular for each rider type?" using "MAXIFS" for each rider type and then matching the days through "XLOOKUP" to find the days of highest activity for each rider type. My analysis found that for member riders, Thursday was the most popular with the highest number of total rides throughout the year, whilst Saturday was most popular with casual members. In fact, digging into the data made me discover that although members dominate in terms of ridership volume, they typically do so during the weekdays (day_summary_2025[day_of_week_num]; "<5" or days under Friday) with an average ride length of 11.52 minutes (and 12.7 minutes during the weekend) compared to casual riders' 20.8 minute average on the weekend (and 17.1 minutes during the weekdays). This directly supports [Napper's](https://www.sciencedirect.com/science/article/pii/S2590198222002007#b0185) and [Wang et al.'s](https://www.sciencedirect.com/science/article/abs/pii/S2214367X24000565) findings wherein leisure-driven riders, though usually constant throughout the week due to a usual lack of time or purpose constraints outside the intention of leisure, typically cycle during the weekend with longer rides compared to commute-driven riders who do so throughout the week.
+
+<br>
+<br>
+
+#### Question 5:
+
+```{r hour of the day summary}
+hour_summary <- map_dfr(csv_files, function(file) {
+  read_csv(file, show_col_types = FALSE) %>%
+    mutate(
+      ride_length_min = as.numeric(difftime(ended_at, started_at, units = "mins")),
+      month = floor_date(started_at, "month"),
+      hour_of_day = hour(started_at)) %>%
+    filter(
+      month >= ymd("2025-01-01"),
+      month <= ymd("2025-12-01"),
+      ride_length_min > 0,
+      ride_length_min <= 1440,
+      member_casual %in% c("member", "casual")) %>%
+    group_by(hour_of_day, member_casual) %>%
+    summarise(
+      total_rides = n(),
+      total_ride_minutes = sum(ride_length_min, na.rm = TRUE),
+      .groups = "drop")
+})
+
+hour_summary_2025 <- hour_summary %>%
+  group_by(hour_of_day, member_casual) %>%
+  summarise(
+    total_rides = sum(total_rides),
+    total_ride_minutes = sum(total_ride_minutes),
+    avg_ride_length = total_ride_minutes / total_rides,
+    .groups = "drop") %>%
+  arrange(hour_of_day, member_casual)
+
+hour_summary_2025 # yes, 48 rows considering 24 hours for each rider type 
+
+write_csv(hour_summary_2025, "hour_summary_2025.csv")
+```
+
+<br>
+<br>
+
+##### Findings:
+To answer "Which hour sees more riders per rider type?", I simply sorted the "total rides" column to find the highest ridership count per hour (I also validated it using both the 'MAXIFS' and 'XLOOKUP' functions) and found that by looking at pure ridership volume alone, the 17th hour or 17:00-17:59 or 5:00-5:5:59pm was the most popular amongst both rider types. However, what I find most interesting is that if one was to purely sort the column of total rides in descending order, the first 8 rows are dominated by member riders and the first 7 are clustered around "rush hour" or common "commute hour windows", as defined by the Oxford English dictionary as "the time, usually twice a day, when the roads are full of traffic and trains are crowded because people are travelling to or from work" (eg: the 17th, 16th, 18th, 8th, 15th, 19th, and 7th) which is further supplemented by the specifications detailed in reports from the [Federal Highway Administration](https://www.fhwa.dot.gov/tpm/rule/pm3/phed.pdf) and the [US Census Bureau](https://data.census.gov/table/ACSST1Y2024.S0801?text=Table+s0801&g=010XX00US). Using Excel's "STDEV" on the top 8 results for both members and casual riders yielded a standard deviation of 0.746 minutes and 2.035 minutes respectively which further provides evidence that member riders typically use Cyclistic's bikes for commuting to and from work based on Question 4's findings.
+
+<br>
+<br>
+
+#### Question 6:
+
+```{r bike type preferences}
+bike_type_summary <- map_dfr(csv_files, function(file) {
+  read_csv(file, show_col_types = FALSE) %>%
+    mutate(
+      ride_length_min = as.numeric(difftime(ended_at, started_at, units = "mins")),
+      month = floor_date(started_at, "month")) %>%
+    filter(
+      month >= ymd("2025-01-01"),
+      month <= ymd("2025-12-01"),
+      ride_length_min > 0,
+      ride_length_min <= 1440,
+      member_casual %in% c("member", "casual")) %>%
+    group_by(rideable_type, member_casual) %>%
+    summarise(
+      total_rides = n(),
+      total_ride_minutes = sum(ride_length_min, na.rm = TRUE),
+      .groups = "drop")
+})
+
+bike_type_summary_2025 <- bike_type_summary %>%
+  group_by(rideable_type, member_casual) %>%
+  summarise(
+    total_rides = sum(total_rides),
+    total_ride_minutes = sum(total_ride_minutes),
+    avg_ride_length = total_ride_minutes / total_rides,
+    .groups = "drop") %>%
+  arrange(rideable_type, member_casual)
+
+bike_type_summary_2025
+
+write_csv(bike_type_summary_2025, "bike_type_summary_2025.csv")
+```
+
+<br>
+<br>
+
+##### Findings:
+When analyzing the data to find out which bike type is preferred for both rider types, e-bikes had a 64% and 66% share of total ridership in 2025 for member and casual riders respectively. This is not necessarily a surprise since studies, like this analytical report by [Markets and Markets](https://www.marketsandmarkets.com/Market-Reports/electric-bike-market-110827400.html) that shows a growing e-bike market share globally, [MacArthur et al.](https://ppms.trec.pdx.edu/media/project_files/E-bikes_in_North_America.pdf)'s research with Portland State University on bike usage, and, ciritcally, an [MIT study on NYC bike usage](https://dspace.mit.edu/server/api/core/bitstreams/74c026e7-5fce-4455-b885-9f8aeb7e7e2d/content), find that e-bikes, especially in Urban areas, are not only preferred in general, but are the chosen mode for Utilitarian-focused riders (ie, for commuting or errands).
+
+<br>
+<br>
+
+#### Questions 1 and 2:
+
+```{r overall ridership summary}
+overall_summary <- map_dfr(csv_files, function(file) {
+  read_csv(file, show_col_types = FALSE) %>%
+    mutate(
+      ride_length_min = as.numeric(difftime(ended_at, started_at, units = "mins")),
+      month = floor_date(started_at, "month")) %>%
+    filter(
+      month >= ymd("2025-01-01"),
+      month <= ymd("2025-12-01"),
+      ride_length_min > 0,
+      ride_length_min <= 1440,
+      member_casual %in% c("member", "casual")) %>%
+    group_by(member_casual) %>%
+    summarise(
+      total_rides = n(),
+      total_ride_minutes = sum(ride_length_min, na.rm = TRUE),
+      .groups = "drop")
+})
+
+overall_summary_2025 <- overall_summary %>%
+  group_by(member_casual) %>%
+  summarise(
+    total_rides = sum(total_rides),
+    total_ride_minutes = sum(total_ride_minutes),
+    avg_ride_length = total_ride_minutes / total_rides,
+    .groups = "drop") %>%
+  arrange(member_casual)
+
+overall_summary_2025
+
+write_csv(overall_summary_2025, "overall_summary_2025.csv")
+```
+
+<br>
+<br>
+
+##### Findings:
+To recall, Questions 1 and 2 were: "Which rider type rides more?" and "Which rider type rides longer on average?" Based on the data,'members' had the most rides in total with 3,552,553 rides logged in 2025 alone, which is 1.78 times more than with 'casual' riders which logged 1,994,774 the same year. However, the data shows that 'casual' riders typically ride longer at 19.3 minutes on average, which is 1.6 times more than the average of 'members' at 11.95 minutes in 2025. 
+
+
+<br>
+<br>
+<br>
+
+### SHARE:
+Now, to create the different visualizations for each of the questions, I had to make sure that they best represented the findings of the data (which made the ggplot2 cheat sheet all the more praiseworthy).
+
+<br>
+
+#### Question 3:
+```{r vis for monthly summary}
+chart_monthly_rides <- monthly_summary_2025 %>%
+  mutate(
+    month = ymd(month),
+    member_casual = str_to_title(member_casual)) %>%
+  ggplot(aes(x = month, y = total_rides, colour = member_casual, group = member_casual)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  labs(
+    title = "Monthly Rides by Rider Type in 2025",
+    subtitle = "Ride volume across the year for casual riders and annual members",
+    x = "Month",
+    y = "Total rides",
+    colour = "Rider type") +
+  scale_x_date(date_labels = "%b", date_breaks = "1 month") + scale_y_continuous(labels = scales::comma) + theme_minimal()
+
+chart_monthly_rides
+```
+
+<br>
+
+#### Question 4:
+
+```{r}
+chart_day_rides <- day_summary_2025 %>%
+  mutate(
+    member_casual = str_to_title(member_casual),
+    day_of_week = factor(
+      day_of_week,
+      levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))) %>%
+  ggplot(aes(x = day_of_week, y = total_rides, fill = member_casual)) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "Rides by Day of Week in 2025",
+    subtitle = "Comparison of weekly usage patterns between casual riders and annual members",
+    x = "Day of week",
+    y = "Total rides",
+    fill = "Rider type") +
+  scale_y_continuous(labels = scales::comma) + theme_minimal() +theme(axis.text.x = element_text(angle = 30, hjust = 1))
+
+chart_day_rides
+```
+
+<br>
+
+#### Question 5:
+```{r}
+chart_hour_rides <- hour_summary_2025 %>%
+  mutate(member_casual = str_to_title(member_casual)) %>%
+  ggplot(aes(x = hour_of_day, y = total_rides, colour = member_casual, group = member_casual)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  scale_x_continuous(breaks = 0:23) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "Rides by Hour of Day in 2025",
+    subtitle = "Hourly usage patterns for casual riders and annual members",
+    x = "Hour of day (24h format)",
+    y = "Total rides",
+    colour = "Rider type") + theme_minimal()
+
+chart_hour_rides
+```
+
+<br>
+
+#### Question 6:
+```{r}
+chart_bike_type <- bike_type_summary_2025 %>%
+  mutate(
+    member_casual = str_to_title(member_casual),
+    rideable_type = str_replace_all(rideable_type, "_", " "),
+    rideable_type = str_to_title(rideable_type)) %>%
+  ggplot(aes(x = rideable_type, y = total_rides, fill = member_casual)) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "Bike Type Usage by Rider Type in 2025",
+    subtitle = "Comparison of preferred bike types between casual riders and annual members",
+    x = "Bike type",
+    y = "Total rides",
+    fill = "Rider type") +
+  scale_y_continuous(labels = scales::comma) + theme_minimal() + theme(axis.text.x = element_text(angle = 30, hjust = 1))
+
+chart_bike_type
+```
+
+<br>
+
+#### Question 1:
+```{r}
+chart_total_rides <- overall_summary_2025 %>%
+  mutate(member_casual = str_to_title(member_casual)) %>%
+  ggplot(aes(x = member_casual, y = total_rides, fill = member_casual)) +
+  geom_col(width = 0.65) +
+  labs(
+    title = "Total Rides by Rider Type in 2025",
+    subtitle = "Comparison of total ride volume between casual riders and annual members",
+    x = "Rider type",
+    y = "Total rides",
+    fill = "Rider type") +
+  scale_y_continuous(labels = scales::comma) +
+  theme_minimal()
+
+chart_total_rides
+```
+
+<br>
+
+#### Question 2:
+```{r}
+chart_avg_ride_length <- overall_summary_2025 %>%
+  mutate(member_casual = str_to_title(member_casual)) %>%
+  ggplot(aes(x = member_casual, y = avg_ride_length, fill = member_casual)) +
+  geom_col(width = 0.65) +
+  labs(
+    title = "Average Ride Length by Rider Type in 2025",
+    subtitle = "Average trip duration measured in minutes",
+    x = "Rider type",
+    y = "Average ride length, minutes",
+    fill = "Rider type") + theme_minimal()
+
+chart_avg_ride_length
+```
+
+<br>
+<br>
+
+#### Overall Summary to answer "How do annual members and casual riders use Cyclistic bikes differently?":
+
+As an aggregation based on my analysis and the visualisations of those findings, the 2025 Cyclistic data shows a clear behavioral distinction between annual members and casual riders. Members generated substantially higher ride volume, with 3,552,553 rides compared with 1,994,774 casual rides, suggesting that members use Cyclistic more regularly and habitually as opposed to casual riders whom rode for longer on average, with an average ride length of 19.3 minutes compared with 11.95 minutes for members. This suggests that member riders are more likely to use Cyclistic for shorter routine-oriented trips, while casual riders are more likely to use the service for longer, discretionary, or leisure-based journeys.
+
+Critically, the time-based patterns strengthen this interpretation. On the surface, both rider types showed similar seasonal usage, peaking in August and declining during colder months, which suggests that ridership remains sensitive to weather and seasonal conditions even among members. However, members were more concentrated during weekdays and commute-adjacent hours, while casual riders showed stronger weekend usage and longer ride durations, especially on weekends. E-bikes were also the dominant bike type for both groups, indicating that convenience and ease of travel are important across the user base. 
+
+<br>
+<br>
+<br>
+
+### ACT: 
+Taken together, my three main recommendations based on the data are thus:
+<br>
+
+#### 1:
+The company should first target casual riders through seasonal membership campaigns during the warmer months, especially from late spring to early autumn when ridership volume is at its highest. Since casual riders appear to be more leisure-oriented and seasonal, Cyclistic should not market the annual membership plan only as a commuting product. Instead, I would recommend that campaigns should frame membership as a convenient and cost-effective option for repeated recreational use, weekend trips, and longer rides during peak cycling months. This could include limited-time summer membership promotions, weekend-focused digital advertisements, and messaging that compares the cost of repeated casual rides with the value of an annual membership coupled with health signaling too.
+<br>
+
+#### 2:
+Cyclistic should create a targeted conversion campaign for high-potential casual riders, especially those who ride repeatedly, use e-bikes, or take longer weekend trips. The data suggests that casual riders are not simply low-volume versions of members and that the data reveals that they have distinct usage patterns throughout the year. Therefore, there is a prioritization case to be made for users whose behavior already shows strong engagement with the service. For example, casual riders who take multiple rides in a month or frequently use e-bikes could receive personalized, as in bespoke plans, in-app or email messages showing how much they could save with a membership based on their usage and frequency. Since e-bikes account for the majority of rides among both rider types, membership promotions should also emphasize e-bike convenience, accessibility, and ease of travel.
+<br>
+
+#### 3:
+The company, if they have not already, should develop weekend and leisure-based membership messaging rather than relying only on weekday commute-oriented marketing since the findings show that casual ridership is strongest on Saturdays and that casual riders take longer rides on average, particularly during weekends. This suggests that many casual riders may value flexibility, recreation, and spontaneous travel more than daily commuting. Thus, Cyclistic, could therefore, promote membership as a way to make weekend exploration easier whilst being cheaper and more convenient with ad campaigns that highlight popular recreational routes (which could also be personalized), weekend ride bundles, tourist-heavy areas, and e-bike access, while encouraging casual riders to see membership as supporting their existing lifestyle rather than changing their behavior entirely.
+<br>
+<br>
+
+#### ADDITIONAL:
+The company could also consider developing seasonal visitor-oriented packages during peak ridership months, particularly in summer when casual rider volume is highest. Since casual riders show longer ride duration and stronger weekend activity, Cyclistic could introduce short-term products such as weekend passes, three-day city passes, or bundled e-bike access for visitors and leisure riders. However, these packages should not replace the annual membership strategy; instead, they should function as a revenue-maximizing product for casual riders who are unlikely to become annual members, such as tourists or short-term visitors. To avoid weakening the membership conversion objective, Cyclistic could pair these packages with targeted follow-up offers for repeat local casual riders, while using visitor packages mainly to capture seasonal tourism demand for an added revenue stream.
+
+
