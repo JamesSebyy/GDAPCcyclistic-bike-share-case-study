@@ -3,7 +3,12 @@ title: "Cyclistic_Analysis"
 author: "James Seby Bacus"
 date: "2026-06-30"
 output:
-  html_document: default
+  github_document:
+    toc: true
+    toc_depth: 2
+  pdf_document:
+    toc: true
+    toc_depth: 2
 ---
 <br>
 <br>
