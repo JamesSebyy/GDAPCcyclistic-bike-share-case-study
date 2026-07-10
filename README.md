@@ -6,7 +6,7 @@ This repository contains my 'Google Data Analytics Professional Certificate' cap
 
 ## Full Case Study
 
-Read the full analysis here: [GDAPCcyclistic-bike-share-case-study](GDAPC_CyclisticAnalysis_Capstone.Rmd)
+Read the full analysis here: [GDAPCcyclistic-bike-share-case-study](GDAPC_CyclisticAnalysis_Capstone.md)
 
 ## Tools Used
 
@@ -24,6 +24,7 @@ Read the full analysis here: [GDAPCcyclistic-bike-share-case-study](GDAPC_Cyclis
 ## Repository Contents
 
 - `GDAPC_CyclisticAnalysis_Capstone.Rmd` - full R Markdown report
+- `GDAPC_CyclisticAnalysis_Capstone.md` - the .md version of the full .Rmd report
 - `README.md` - rendered GitHub-readable report
 - `cyclistic_analysis.R` — R script used for data cleaning, summary creation, and visualisation
 - `cleanedCSV` - cleaned summary CSV files
